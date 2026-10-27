@@ -1,0 +1,80 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Million Pixel Project</title>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: white;
+  text-align: center;
+}
+header { padding: 35px 15px; }
+h1 { font-size: clamp(28px, 5vw, 48px); margin-bottom: 10px; }
+p { color: #ccc; }
+.wall {
+  display: grid;
+  grid-template-columns: repeat(40, 1fr);
+  gap: 2px;
+  max-width: 900px;
+  margin: 20px auto;
+  padding: 10px;
+  background: #333;
+}
+.pixel {
+  aspect-ratio: 1;
+  background: #252525;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.pixel:hover { outline: 2px solid white; }
+.pixel.sold { background: #e84b64; }
+.info { padding: 25px; }
+button.action {
+  background: #f5c542;
+  border: 0;
+  border-radius: 6px;
+  padding: 12px 20px;
+  font-weight: bold;
+  cursor: pointer;
+}
+footer { padding: 25px; color: #888; }
+</style>
+</head>
+<body>
+<header>
+  <h1>The Million Pixel Project</h1>
+  <p>One million pixels. One dollar each. Your little piece of the internet.</p>
+  <button class="action" onclick="document.getElementById('wall').scrollIntoView({behavior:'smooth'})">Explore the wall</button>
+</header>
+<section class="info">
+  <h2>The Pixel Wall</h2>
+  <p>Choose a square to explore our advertising wall.</p>
+  <p id="status">Demonstration: 1,000,000 pixels planned</p>
+</section>
+<div id="wall" class="wall"></div>
+<footer>
+  <p>Currently under construction. Purchases are not open.</p>
+</footer>
+<script>
+const wall = document.getElementById('wall');
+for (let i = 0; i < 400; i++) {
+  const pixel = document.createElement('button');
+  pixel.className = 'pixel';
+  pixel.setAttribute('aria-label', 'Demo pixel ' + (i + 1));
+  pixel.title = 'Demo pixel ' + (i + 1);
+  pixel.onclick = () => {
+    document.getElementById('status').textContent =
+      'You selected demo pixel ' + (i + 1) +
+      '. Buying is not available yet.';
+  };
+  wall.appendChild(pixel);
+}
+</script>
+</body>
+</html>
