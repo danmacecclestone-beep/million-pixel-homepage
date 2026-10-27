@@ -5,6 +5,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Million Pixel Project</title>
+
+.pixel {
+  touch-action: none;
+  user-select: none;
+}
+.pixel.selected {
+  background: #f5c542;
+  outline: 1px solid white;
+}
 <style>
 body {
   margin: 0;
@@ -62,19 +71,74 @@ footer { padding: 25px; color: #888; }
   <p>Currently under construction. Purchases are not open.</p>
 </footer>
 <script>
+
+<script>
 const wall = document.getElementById('wall');
-for (let i = 0; i < 10000; i++) {
+const status = document.getElementById('status');
+const columns = 100;
+const total = 10000;
+
+let dragging = false;
+let startIndex = null;
+let selected = new Set();
+
+function updateSelection(endIndex) {
+  const startRow = Math.floor(startIndex / columns);
+  const startCol = startIndex % columns;
+  const endRow = Math.floor(endIndex / columns);
+  const endCol = endIndex % columns;
+
+  const minRow = Math.min(startRow, endRow);
+  const maxRow = Math.max(startRow, endRow);
+  const minCol = Math.min(startCol, endCol);
+  const maxCol = Math.max(startCol, endCol);
+
+  selected.clear();
+
+  wall.querySelectorAll('.pixel.selected')
+    .forEach(pixel => pixel.classList.remove('selected'));
+
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      const index = row * columns + col;
+      selected.add(index);
+      wall.children[index].classList.add('selected');
+    }
+  }
+
+  const count = selected.size;
+  status.textContent =
+    count + ' demo pixels selected — indicative price: NZ$' +
+    count.toLocaleString('en-NZ') +
+    '. Purchases are not open yet.';
+}
+
+for (let i = 0; i < total; i++) {
   const pixel = document.createElement('button');
   pixel.className = 'pixel';
+  pixel.type = 'button';
   pixel.setAttribute('aria-label', 'Demo pixel ' + (i + 1));
-  pixel.title = 'Demo pixel ' + (i + 1);
-  pixel.onclick = () => {
-    document.getElementById('status').textContent =
-      'You selected demo pixel ' + (i + 1) +
-      '. Buying is not available yet.';
-  };
+  pixel.title = 'Drag to select an advertising block';
+
+  pixel.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    dragging = true;
+    startIndex = i;
+    updateSelection(i);
+  });
+
+  pixel.addEventListener('pointerenter', () => {
+    if (dragging) updateSelection(i);
+  });
+
   wall.appendChild(pixel);
 }
+
+window.addEventListener('pointerup', () => {
+  dragging = false;
+});
+</script>
+
 </script>
 </body>
 </html>
