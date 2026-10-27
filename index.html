@@ -16,11 +16,11 @@
       --accent: #f5c542;
       --text: #f5f5f5;
       --muted: #b0b0b0;
+      --sold: #507b63;
+      --reserved: #876b42;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -30,19 +30,14 @@
       text-align: center;
     }
 
-    header {
-      padding: 36px 16px 20px;
-    }
+    header { padding: 36px 16px 20px; }
 
     h1 {
       margin: 0 0 10px;
       font-size: clamp(2rem, 6vw, 3.5rem);
     }
 
-    header p,
-    .muted {
-      color: var(--muted);
-    }
+    header p, .muted { color: var(--muted); }
 
     main {
       width: min(1100px, 94%);
@@ -74,6 +69,25 @@
       opacity: 0.6;
     }
 
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+      margin: 18px 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .key {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 5px;
+      border-radius: 2px;
+      vertical-align: -1px;
+    }
+
     #wall {
       display: grid;
       grid-template-columns: repeat(100, minmax(0, 1fr));
@@ -100,13 +114,10 @@
       touch-action: none;
     }
 
-    .pixel:hover {
-      outline: 1px solid white;
-    }
-
-    .pixel.selected {
-      background: var(--accent);
-    }
+    .pixel.selected { background: var(--accent); }
+    .pixel.sold { background: var(--sold); cursor: not-allowed; }
+    .pixel.reserved { background: var(--reserved); cursor: not-allowed; }
+    .pixel:focus-visible { outline: 2px solid white; }
 
     #price {
       font-size: 1.3rem;
@@ -135,20 +146,31 @@
   <main>
     <section class="info">
       <h2>Claim your place on the wall</h2>
+      <p>Select available squares by clicking or dragging.</p>
 
-      <p>Click individual squares to select them, or click and drag to select multiple squares.</p>
+      <div class="legend">
+        <span><i class="key" style="background:var(--pixel)"></i>Available</span>
+        <span><i class="key" style="background:var(--accent)"></i>Selected</span>
+        <span><i class="key" style="background:var(--reserved)"></i>Reserved</span>
+        <span><i class="key" style="background:var(--sold)"></i>Sold</span>
+      </div>
 
-      <p id="status" aria-live="polite">0 squares selected.</p>
-
+      <p id="status" aria-live="polite">Loading the wall...</p>
       <p id="price">Total: NZ$0.00</p>
 
-      <button id="checkout" type="button" class="action">
+      <button id="checkout" type="button" class="action" disabled>
         Pay for advertising
       </button>
 
       <p id="checkout-message" role="status" aria-live="polite"></p>
 
-      <p class="muted">NZ$1 per square. Payments are currently in test mode.</p>
+      <button id="refresh" type="button" class="action">
+        Refresh availability
+      </button>
+
+      <p class="muted">
+        NZ$1 per square. Payments are in test mode.
+      </p>
     </section>
 
     <div id="wall" aria-label="Million Pixel advertising wall"></div>
@@ -161,19 +183,22 @@
       "https://million-pixel-checkout.danmacecclestone.workers.dev";
 
     const columns = 100;
-    const rows = 100;
-    const total = columns * rows;
+    const total = 10000;
 
     const wall = document.getElementById("wall");
     const status = document.getElementById("status");
     const price = document.getElementById("price");
     const checkout = document.getElementById("checkout");
-    const checkoutMessage = document.getElementById("checkout-message");
+    const refresh = document.getElementById("refresh");
+    const message = document.getElementById("checkout-message");
 
     const selected = new Set();
+    const pixels = [];
 
     let dragging = false;
     let dragMode = "select";
+    let wallLoaded = false;
+    let checkoutRunning = false;
 
     function formatPrice(amount) {
       return new Intl.NumberFormat("en-NZ", {
@@ -188,56 +213,146 @@
       status.textContent =
         count + (count === 1 ? " square selected." : " squares selected.");
 
-      // Every square costs exactly NZ$1.
       price.textContent = "Total: " + formatPrice(count);
-      checkoutMessage.textContent = "";
+      checkout.disabled = !wallLoaded || checkoutRunning || count === 0;
     }
 
-    function setPixel(index, shouldSelect) {
-      const pixel = wall.children[index];
+    function isAvailable(id) {
+      return pixels[id] && pixels[id].status === "available";
+    }
+
+    function setPixel(id, shouldSelect) {
+      if (!isAvailable(id)) return;
 
       if (shouldSelect) {
-        selected.add(index);
-        pixel.classList.add("selected");
+        selected.add(id);
+        wall.children[id].classList.add("selected");
       } else {
-        selected.delete(index);
-        pixel.classList.remove("selected");
+        selected.delete(id);
+        wall.children[id].classList.remove("selected");
       }
 
       updateDisplay();
     }
 
-    for (let i = 0; i < total; i++) {
-      const pixel = document.createElement("button");
+    function clearSelection() {
+      for (const id of selected) {
+        wall.children[id].classList.remove("selected");
+      }
 
-      pixel.type = "button";
-      pixel.className = "pixel";
-      pixel.setAttribute("aria-label", "Pixel " + (i + 1));
-      pixel.title = "Pixel " + (i + 1);
+      selected.clear();
+      updateDisplay();
+    }
 
-      pixel.addEventListener("pointerdown", function (event) {
-        if (event.button !== 0 && event.pointerType === "mouse") {
-          return;
+    function createWall() {
+      for (let id = 0; id < total; id++) {
+        const pixel = document.createElement("button");
+
+        pixel.type = "button";
+        pixel.className = "pixel";
+        pixel.setAttribute("aria-label", "Pixel " + (id + 1));
+        pixel.title = "Pixel " + (id + 1);
+
+        pixel.addEventListener("pointerdown", function (event) {
+          if (!wallLoaded || checkoutRunning) return;
+
+          if (event.button !== 0 && event.pointerType === "mouse") {
+            return;
+          }
+
+          if (!isAvailable(id)) return;
+
+          event.preventDefault();
+          dragging = true;
+          dragMode = selected.has(id) ? "deselect" : "select";
+
+          setPixel(id, dragMode === "select");
+        });
+
+        pixel.addEventListener("pointerenter", function () {
+          if (!dragging || !wallLoaded || checkoutRunning) return;
+
+          setPixel(id, dragMode === "select");
+        });
+
+        wall.appendChild(pixel);
+      }
+    }
+
+    async function loadPixels() {
+      wallLoaded = false;
+      checkout.disabled = true;
+      refresh.disabled = true;
+      message.textContent = "Loading availability...";
+
+      try {
+        const response = await fetch(WORKER_URL + "/pixels");
+        const result = await response.json();
+
+        if (!response.ok || !Array.isArray(result.pixels) ||
+            result.pixels.length !== total) {
+          throw new Error("The wall could not be loaded correctly.");
         }
 
-        event.preventDefault();
+        for (const item of result.pixels) {
+          if (!Number.isInteger(item.pixel_id) ||
+              item.pixel_id < 0 || item.pixel_id >= total ||
+              !["available", "reserved", "sold"].includes(item.status)) {
+            throw new Error("The server returned invalid pixel data.");
+          }
+        }
 
-        dragging = true;
+        const nextPixels = new Array(total);
 
-        // Clicking a selected square starts deselecting.
-        // Clicking an unselected square starts selecting.
-        dragMode = selected.has(i) ? "deselect" : "select";
+        for (const item of result.pixels) {
+          if (nextPixels[item.pixel_id]) {
+            throw new Error("Duplicate pixel data was received.");
+          }
+          nextPixels[item.pixel_id] = item;
+        }
 
-        setPixel(i, dragMode === "select");
-      });
+        if (nextPixels.some(item => !item)) {
+          throw new Error("Some squares are missing from the wall.");
+        }
 
-      pixel.addEventListener("pointerenter", function () {
-        if (!dragging) return;
+        for (let id = 0; id < total; id++) {
+          pixels[id] = nextPixels[id];
 
-        setPixel(i, dragMode === "select");
-      });
+          const pixel = wall.children[id];
+          pixel.classList.remove("sold", "reserved", "selected");
+          pixel.classList.add(pixels[id].status);
 
-      wall.appendChild(pixel);
+          pixel.disabled = pixels[id].status !== "available";
+
+          pixel.title =
+            "Pixel " + (id + 1) + " — " + pixels[id].status;
+
+          pixel.setAttribute(
+            "aria-label",
+            "Pixel " + (id + 1) + " — " + pixels[id].status
+          );
+
+          if (selected.has(id) && !isAvailable(id)) {
+            selected.delete(id);
+          }
+
+          if (selected.has(id)) {
+            pixel.classList.add("selected");
+          }
+        }
+
+        wallLoaded = true;
+        message.textContent = "Availability updated.";
+        updateDisplay();
+      } catch (error) {
+        wallLoaded = false;
+        message.textContent =
+          "Could not load the wall. Please try again. " +
+          (error.message || "");
+        updateDisplay();
+      } finally {
+        refresh.disabled = false;
+      }
     }
 
     window.addEventListener("pointerup", function () {
@@ -248,37 +363,36 @@
       dragging = false;
     });
 
-    checkout.addEventListener("click", async function () {
-      const squareCount = selected.size;
+    refresh.addEventListener("click", loadPixels);
 
-      if (squareCount < 1) {
-        checkoutMessage.textContent =
-          "Please select at least one square first.";
+    checkout.addEventListener("click", async function () {
+      if (!wallLoaded || checkoutRunning || selected.size === 0) {
         return;
       }
 
-      // The amount shown and the quantity sent to Stripe
-      // both use the actual number of selected squares.
+      const pixelIds = Array.from(selected);
+
+      checkoutRunning = true;
       checkout.disabled = true;
-      checkoutMessage.textContent = "Preparing your checkout...";
+      refresh.disabled = true;
+      message.textContent = "Preparing secure checkout...";
 
       try {
         const response = await fetch(
           WORKER_URL + "/create-checkout",
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              squares: squareCount
-            })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pixelIds })
           }
         );
 
         const result = await response.json();
 
         if (!response.ok || !result.url) {
+          if (response.status === 409) {
+            await loadPixels();
+          }
           throw new Error(
             result.error || "Checkout could not be created."
           );
@@ -286,14 +400,29 @@
 
         window.location.href = result.url;
       } catch (error) {
-        checkoutMessage.textContent =
+        message.textContent =
           error.message || "Something went wrong. Please try again.";
-
+        checkoutRunning = false;
         checkout.disabled = false;
+        refresh.disabled = false;
+        updateDisplay();
       }
     });
 
-    updateDisplay();
+    createWall();
+    loadPixels();
+
+    const paymentStatus = new URLSearchParams(
+      window.location.search
+    ).get("payment");
+
+    if (paymentStatus === "success") {
+      message.textContent =
+        "Checkout returned successfully. The wall will update after Stripe confirms payment.";
+    } else if (paymentStatus === "cancelled") {
+      message.textContent =
+        "Checkout was cancelled. Refresh availability before trying again.";
+    }
   </script>
 </body>
 </html>
