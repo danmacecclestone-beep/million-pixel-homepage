@@ -4,21 +4,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Claim your place on Million Pixel. Buy advertising space on a shared pixel wall.">
+  <meta name="description" content="Buy advertising space on the Million Pixel wall.">
   <title>Million Pixel — Own a Piece of the Wall</title>
 
   <style>
     :root {
       color-scheme: dark;
-      --background: #111111;
+      --background: #111;
       --panel: #1c1c1c;
-      --pixel: #292929;
+      --pixel: #303030;
       --accent: #f5c542;
       --text: #f5f5f5;
       --muted: #b0b0b0;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -28,15 +30,19 @@
       text-align: center;
     }
 
-    header { padding: 36px 16px 20px; }
+    header {
+      padding: 36px 16px 20px;
+    }
 
     h1 {
       margin: 0 0 10px;
       font-size: clamp(2rem, 6vw, 3.5rem);
-      letter-spacing: -1px;
     }
 
-    header p, .muted { color: var(--muted); }
+    header p,
+    .muted {
+      color: var(--muted);
+    }
 
     main {
       width: min(1100px, 94%);
@@ -61,7 +67,6 @@
       font-weight: bold;
       font-size: 1rem;
       cursor: pointer;
-      text-decoration: none;
     }
 
     .action:disabled {
@@ -78,8 +83,8 @@
       padding: 5px;
       background: #383838;
       border-radius: 4px;
-      touch-action: none;
       user-select: none;
+      touch-action: none;
     }
 
     .pixel {
@@ -95,9 +100,18 @@
       touch-action: none;
     }
 
-    .pixel:hover { outline: 1px solid white; }
+    .pixel:hover {
+      outline: 1px solid white;
+    }
 
-    .pixel.selected { background: var(--accent); }
+    .pixel.selected {
+      background: var(--accent);
+    }
+
+    #price {
+      font-size: 1.3rem;
+      font-weight: bold;
+    }
 
     #checkout-message {
       min-height: 1.5em;
@@ -121,26 +135,34 @@
   <main>
     <section class="info">
       <h2>Claim your place on the wall</h2>
-      <p>Click and drag across the squares to make a selection.</p>
-      <p id="status" aria-live="polite">No squares selected yet.</p>
-      <p id="price">Indicative price: NZ$0</p>
+
+      <p>Click individual squares to select them, or click and drag to select multiple squares.</p>
+
+      <p id="status" aria-live="polite">0 squares selected.</p>
+
+      <p id="price">Total: NZ$0.00</p>
+
       <button id="checkout" type="button" class="action">
         Pay for advertising
       </button>
+
       <p id="checkout-message" role="status" aria-live="polite"></p>
+
       <p class="muted">NZ$1 per square. Payments are currently in test mode.</p>
     </section>
 
     <div id="wall" aria-label="Million Pixel advertising wall"></div>
   </main>
 
-  <footer>
-    Million Pixel — a wall of possibilities.
-  </footer>
+  <footer>Million Pixel — a wall of possibilities.</footer>
 
   <script>
     const WORKER_URL =
       "https://million-pixel-checkout.danmacecclestone.workers.dev";
+
+    const columns = 100;
+    const rows = 100;
+    const total = columns * rows;
 
     const wall = document.getElementById("wall");
     const status = document.getElementById("status");
@@ -148,13 +170,42 @@
     const checkout = document.getElementById("checkout");
     const checkoutMessage = document.getElementById("checkout-message");
 
-    const columns = 100;
-    const rows = 100;
-    const total = columns * rows;
     const selected = new Set();
 
     let dragging = false;
-    let startIndex = null;
+    let dragMode = "select";
+
+    function formatPrice(amount) {
+      return new Intl.NumberFormat("en-NZ", {
+        style: "currency",
+        currency: "NZD"
+      }).format(amount);
+    }
+
+    function updateDisplay() {
+      const count = selected.size;
+
+      status.textContent =
+        count + (count === 1 ? " square selected." : " squares selected.");
+
+      // Every square costs exactly NZ$1.
+      price.textContent = "Total: " + formatPrice(count);
+      checkoutMessage.textContent = "";
+    }
+
+    function setPixel(index, shouldSelect) {
+      const pixel = wall.children[index];
+
+      if (shouldSelect) {
+        selected.add(index);
+        pixel.classList.add("selected");
+      } else {
+        selected.delete(index);
+        pixel.classList.remove("selected");
+      }
+
+      updateDisplay();
+    }
 
     for (let i = 0; i < total; i++) {
       const pixel = document.createElement("button");
@@ -165,16 +216,25 @@
       pixel.title = "Pixel " + (i + 1);
 
       pixel.addEventListener("pointerdown", function (event) {
+        if (event.button !== 0 && event.pointerType === "mouse") {
+          return;
+        }
+
         event.preventDefault();
+
         dragging = true;
-        startIndex = i;
-        selectArea(i, i);
+
+        // Clicking a selected square starts deselecting.
+        // Clicking an unselected square starts selecting.
+        dragMode = selected.has(i) ? "deselect" : "select";
+
+        setPixel(i, dragMode === "select");
       });
 
       pixel.addEventListener("pointerenter", function () {
-        if (dragging && startIndex !== null) {
-          selectArea(startIndex, i);
-        }
+        if (!dragging) return;
+
+        setPixel(i, dragMode === "select");
       });
 
       wall.appendChild(pixel);
@@ -182,51 +242,23 @@
 
     window.addEventListener("pointerup", function () {
       dragging = false;
-      startIndex = null;
     });
 
     window.addEventListener("pointercancel", function () {
       dragging = false;
-      startIndex = null;
     });
 
-    function selectArea(start, end) {
-      selected.forEach(function (index) {
-        wall.children[index].classList.remove("selected");
-      });
-
-      selected.clear();
-
-      const row1 = Math.floor(start / columns);
-      const col1 = start % columns;
-      const row2 = Math.floor(end / columns);
-      const col2 = end % columns;
-
-      const top = Math.min(row1, row2);
-      const bottom = Math.max(row1, row2);
-      const left = Math.min(col1, col2);
-      const right = Math.max(col1, col2);
-
-      for (let row = top; row <= bottom; row++) {
-        for (let col = left; col <= right; col++) {
-          const index = row * columns + col;
-
-          selected.add(index);
-          wall.children[index].classList.add("selected");
-        }
-      }
-
-      status.textContent = selected.size + " square(s) selected.";
-      price.textContent = "Indicative price: NZ$" + selected.size;
-      checkoutMessage.textContent = "";
-    }
-
     checkout.addEventListener("click", async function () {
-      if (selected.size < 1) {
-        checkoutMessage.textContent = "Please select at least one square.";
+      const squareCount = selected.size;
+
+      if (squareCount < 1) {
+        checkoutMessage.textContent =
+          "Please select at least one square first.";
         return;
       }
 
+      // The amount shown and the quantity sent to Stripe
+      // both use the actual number of selected squares.
       checkout.disabled = true;
       checkoutMessage.textContent = "Preparing your checkout...";
 
@@ -235,8 +267,12 @@
           WORKER_URL + "/create-checkout",
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ squares: selected.size })
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              squares: squareCount
+            })
           }
         );
 
@@ -252,9 +288,12 @@
       } catch (error) {
         checkoutMessage.textContent =
           error.message || "Something went wrong. Please try again.";
+
         checkout.disabled = false;
       }
     });
+
+    updateDisplay();
   </script>
 </body>
 </html>
