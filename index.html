@@ -2,180 +2,200 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Million Pixel Homepage NZ</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Million Pixel Homepage NZ</title>
 
-<style>
-* {
-  box-sizing: border-box;
-}
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #111;
-  color: white;
-  text-align: center;
-}
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111111;
+      color: #ffffff;
+      text-align: center;
+    }
 
-header {
-  padding: 35px 15px;
-}
+    header {
+      padding: 35px 15px;
+    }
 
-h1 {
-  font-size: clamp(28px, 5vw, 48px);
-  margin-bottom: 10px;
-}
+    h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      margin-bottom: 10px;
+    }
 
-p {
-  color: #ccc;
-}
+    p {
+      color: #cccccc;
+      line-height: 1.5;
+    }
 
-button.action {
-  background: #f5c542;
-  color: #111;
-  border: 0;
-  border-radius: 6px;
-  padding: 12px 20px;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: 16px;
-}
+    .action {
+      display: inline-block;
+      background: #f5c542;
+      color: #111111;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
 
-.wall {
-  display: grid;
-  grid-template-columns: repeat(100, minmax(0, 1fr));
-  gap: 2px;
-  max-width: 900px;
-  margin: 20px auto;
-  padding: 10px;
-  background: #333;
-}
+    .info {
+      padding: 20px 12px;
+    }
 
-.pixel {
-  aspect-ratio: 1;
-  min-width: 0;
-  background: #252525;
-  border: 0;
-  padding: 0;
-  cursor: crosshair;
-  touch-action: none;
-  user-select: none;
-}
+    .wall {
+      display: grid;
+      grid-template-columns: repeat(100, minmax(0, 1fr));
+      gap: 1px;
+      width: calc(100% - 20px);
+      max-width: 900px;
+      margin: 20px auto;
+      padding: 5px;
+      background: #444444;
+    }
 
-.pixel:hover {
-  outline: 1px solid white;
-}
+    .pixel {
+      display: block;
+      appearance: none;
+      width: 100%;
+      min-width: 0;
+      aspect-ratio: 1;
+      margin: 0;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: #252525;
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+    }
 
-.pixel.selected {
-  background: #f5c542;
-  outline: 1px solid white;
-}
+    .pixel:hover {
+      outline: 1px solid #ffffff;
+      z-index: 1;
+    }
 
-.info {
-  padding: 25px;
-}
+    .pixel.selected {
+      background: #f5c542;
+    }
 
-footer {
-  padding: 25px;
-  color: #888;
-}
-</style>
+    footer {
+      padding: 25px 10px;
+      color: #888888;
+    }
+  </style>
 </head>
 
 <body>
-<header>
-  <h1>Million Pixel Homepage NZ</h1>
-  <p>A little square of the internet for everyone.</p>
-  <button class="action" onclick="document.getElementById('wall').scrollIntoView({behavior:'smooth'})">
-    Explore the wall
-  </button>
-</header>
+  <header>
+    <h1>Million Pixel Homepage NZ</h1>
+    <p>A little square of the internet for everyone.</p>
+    <button class="action" id="explore">Explore the wall</button>
+  </header>
 
-<main>
-  <div class="info">
-    <h2>Claim your place on the wall</h2>
-    <p>Select squares by clicking and dragging across the wall.</p>
-    <p id="status">No squares selected yet.</p>
-    <p id="price">Indicative price: NZ$1 per square.</p>
-  </div>
+  <main>
+    <section class="info">
+      <h2>Claim your place on the wall</h2>
+      <p>Click and drag across the squares to make a selection.</p>
+      <p id="status">No squares selected yet.</p>
+      <p id="price">Indicative price: NZ$0</p>
+    </section>
 
-  <div id="wall" class="wall"></div>
+    <div id="wall" class="wall"></div>
 
-  <div class="info">
-    <p>This website is a work in progress. Purchases are not available yet.</p>
-  </div>
-</main>
+    <section class="info">
+      <p>Purchases are not available yet. This website is a work in progress.</p>
+    </section>
+  </main>
 
-<footer>
-  Million Pixel Homepage NZ
-</footer>
+  <footer>
+    Million Pixel Homepage NZ
+  </footer>
 
-<script>
-const wall = document.getElementById("wall");
-const status = document.getElementById("status");
-const price = document.getElementById("price");
-const columns = 100;
-const totalPixels = 10000;
-let dragging = false;
-let startIndex = null;
-let selected = new Set();
+  <script>
+    const wall = document.getElementById("wall");
+    const status = document.getElementById("status");
+    const price = document.getElementById("price");
+    const explore = document.getElementById("explore");
 
-for (let i = 0; i < totalPixels; i++) {
-  const pixel = document.createElement("button");
-  pixel.className = "pixel";
-  pixel.type = "button";
-  pixel.setAttribute("aria-label", "Pixel " + (i + 1));
-  pixel.title = "Pixel " + (i + 1);
+    const columns = 100;
+    const total = 10000;
 
-  pixel.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    dragging = true;
-    startIndex = i;
-    selectRectangle(i, i);
-  });
+    let dragging = false;
+    let startIndex = null;
+    let selected = new Set();
 
-  pixel.addEventListener("pointerenter", () => {
-    if (dragging && startIndex !== null) {
-      selectRectangle(startIndex, i);
+    explore.addEventListener("click", function () {
+      wall.scrollIntoView({ behavior: "smooth" });
+    });
+
+    for (let i = 0; i < total; i++) {
+      const pixel = document.createElement("button");
+
+      pixel.type = "button";
+      pixel.className = "pixel";
+      pixel.setAttribute("aria-label", "Pixel " + (i + 1));
+      pixel.title = "Pixel " + (i + 1);
+
+      pixel.addEventListener("pointerdown", function (event) {
+        event.preventDefault();
+        dragging = true;
+        startIndex = i;
+        selectArea(i, i);
+      });
+
+      pixel.addEventListener("pointerenter", function () {
+        if (dragging && startIndex !== null) {
+          selectArea(startIndex, i);
+        }
+      });
+
+      wall.appendChild(pixel);
     }
-  });
 
-  wall.appendChild(pixel);
-}
+    window.addEventListener("pointerup", function () {
+      dragging = false;
+    });
 
-window.addEventListener("pointerup", () => {
-  dragging = false;
-});
+    window.addEventListener("pointercancel", function () {
+      dragging = false;
+    });
 
-function selectRectangle(start, end) {
-  for (const index of selected) {
-    wall.children[index].classList.remove("selected");
-  }
-  selected.clear();
+    function selectArea(start, end) {
+      selected.forEach(function (index) {
+        wall.children[index].classList.remove("selected");
+      });
 
-  const startRow = Math.floor(start / columns);
-  const startCol = start % columns;
-  const endRow = Math.floor(end / columns);
-  const endCol = end % columns;
+      selected.clear();
 
-  const minRow = Math.min(startRow, endRow);
-  const maxRow = Math.max(startRow, endRow);
-  const minCol = Math.min(startCol, endCol);
-  const maxCol = Math.max(startCol, endCol);
+      const row1 = Math.floor(start / columns);
+      const col1 = start % columns;
+      const row2 = Math.floor(end / columns);
+      const col2 = end % columns;
 
-  for (let row = minRow; row <= maxRow; row++) {
-    for (let col = minCol; col <= maxCol; col++) {
-      const index = row * columns + col;
-      selected.add(index);
-      wall.children[index].classList.add("selected");
+      const top = Math.min(row1, row2);
+      const bottom = Math.max(row1, row2);
+      const left = Math.min(col1, col2);
+      const right = Math.max(col1, col2);
+
+      for (let row = top; row <= bottom; row++) {
+        for (let col = left; col <= right; col++) {
+          const index = row * columns + col;
+
+          selected.add(index);
+          wall.children[index].classList.add("selected");
+        }
+      }
+
+      status.textContent = selected.size + " square(s) selected.";
+      price.textContent = "Indicative price: NZ$" + selected.size;
     }
-  }
-
-  status.textContent = selected.size + " square(s) selected.";
-  price.textContent = "Indicative price: NZ$" + selected.size + ".";
-}
-</script>
+  </script>
 </body>
 </html>
