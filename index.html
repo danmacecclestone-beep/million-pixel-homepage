@@ -1,93 +1,113 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-NZ">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Million Pixel Homepage NZ</title>
+  <meta name="description" content="Claim your place on Million Pixel. Buy advertising space on a shared pixel wall.">
+  <title>Million Pixel — Own a Piece of the Wall</title>
 
   <style>
-    * {
-      box-sizing: border-box;
+    :root {
+      color-scheme: dark;
+      --background: #111111;
+      --panel: #1c1c1c;
+      --pixel: #292929;
+      --accent: #f5c542;
+      --text: #f5f5f5;
+      --muted: #b0b0b0;
     }
+
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111111;
-      color: #ffffff;
+      background: var(--background);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
       text-align: center;
     }
 
-    header {
-      padding: 35px 15px;
-    }
+    header { padding: 36px 16px 20px; }
 
     h1 {
-      font-size: clamp(28px, 5vw, 48px);
-      margin-bottom: 10px;
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      letter-spacing: -1px;
     }
 
-    p {
-      color: #cccccc;
-      line-height: 1.5;
+    header p, .muted { color: var(--muted); }
+
+    main {
+      width: min(1100px, 94%);
+      margin: 0 auto;
+    }
+
+    .info {
+      margin: 20px auto;
+      padding: 22px;
+      background: var(--panel);
+      border: 1px solid #333;
+      border-radius: 12px;
     }
 
     .action {
       display: inline-block;
-      background: #f5c542;
-      color: #111111;
-      border: none;
-      border-radius: 6px;
-      padding: 12px 20px;
-      font-size: 16px;
+      padding: 13px 22px;
+      border: 0;
+      border-radius: 7px;
+      background: var(--accent);
+      color: #171717;
       font-weight: bold;
+      font-size: 1rem;
       cursor: pointer;
+      text-decoration: none;
     }
 
-    .info {
-      padding: 20px 12px;
+    .action:disabled {
+      cursor: wait;
+      opacity: 0.6;
     }
 
-    .wall {
+    #wall {
       display: grid;
       grid-template-columns: repeat(100, minmax(0, 1fr));
       gap: 1px;
-      width: calc(100% - 20px);
-      max-width: 900px;
-      margin: 20px auto;
-      padding: 5px;
-      background: #444444;
-    }
-
-    .pixel {
-      display: block;
-      appearance: none;
       width: 100%;
-      min-width: 0;
-      aspect-ratio: 1;
-      margin: 0;
-      padding: 0;
-      border: none;
-      border-radius: 0;
-      background: #252525;
-      cursor: crosshair;
+      margin: 24px auto;
+      padding: 5px;
+      background: #383838;
+      border-radius: 4px;
       touch-action: none;
       user-select: none;
     }
 
-    .pixel:hover {
-      outline: 1px solid #ffffff;
-      z-index: 1;
+    .pixel {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: var(--pixel);
+      cursor: crosshair;
+      touch-action: none;
     }
 
-    .pixel.selected {
-      background: #f5c542;
+    .pixel:hover { outline: 1px solid white; }
+
+    .pixel.selected { background: var(--accent); }
+
+    #checkout-message {
+      min-height: 1.5em;
+      overflow-wrap: anywhere;
     }
 
     footer {
       padding: 25px 10px;
-      color: #888888;
+      color: #888;
+      font-size: 0.9rem;
     }
   </style>
 </head>
@@ -95,52 +115,46 @@
 <body>
   <header>
     <h1>Million Pixel</h1>
-    <p>A little square of the internet for everyone.</p>
-    <button class="action" id="explore">Explore the wall</button>
+    <p>Own a piece of the wall. Make your mark.</p>
   </header>
 
   <main>
     <section class="info">
       <h2>Claim your place on the wall</h2>
       <p>Click and drag across the squares to make a selection.</p>
-      <p id="status">No squares selected yet.</p>
+      <p id="status" aria-live="polite">No squares selected yet.</p>
       <p id="price">Indicative price: NZ$0</p>
-      <p>
-  <a id="checkout" href="https://buy.stripe.com/test_5kQ7sDbohamu8XB7xabII00"
-     target="_blank" rel="noopener noreferrer"
-     class="action">
-    Pay for advertising
-  </a>
-</p>
+      <button id="checkout" type="button" class="action">
+        Pay for advertising
+      </button>
+      <p id="checkout-message" role="status" aria-live="polite"></p>
+      <p class="muted">NZ$1 per square. Payments are currently in test mode.</p>
     </section>
 
-    <div id="wall" class="wall"></div>
-
-    <section class="info">
-      <p>Purchases are not available yet. This website is a work in progress.</p>
-    </section>
+    <div id="wall" aria-label="Million Pixel advertising wall"></div>
   </main>
 
   <footer>
-    Million Pixel Homepage NZ
+    Million Pixel — a wall of possibilities.
   </footer>
 
   <script>
+    const WORKER_URL =
+      "https://million-pixel-checkout.danmacecclestone.workers.dev";
+
     const wall = document.getElementById("wall");
     const status = document.getElementById("status");
     const price = document.getElementById("price");
-    const explore = document.getElementById("explore");
+    const checkout = document.getElementById("checkout");
+    const checkoutMessage = document.getElementById("checkout-message");
 
     const columns = 100;
-    const total = 10000;
+    const rows = 100;
+    const total = columns * rows;
+    const selected = new Set();
 
     let dragging = false;
     let startIndex = null;
-    let selected = new Set();
-
-    explore.addEventListener("click", function () {
-      wall.scrollIntoView({ behavior: "smooth" });
-    });
 
     for (let i = 0; i < total; i++) {
       const pixel = document.createElement("button");
@@ -168,10 +182,12 @@
 
     window.addEventListener("pointerup", function () {
       dragging = false;
+      startIndex = null;
     });
 
     window.addEventListener("pointercancel", function () {
       dragging = false;
+      startIndex = null;
     });
 
     function selectArea(start, end) {
@@ -202,7 +218,43 @@
 
       status.textContent = selected.size + " square(s) selected.";
       price.textContent = "Indicative price: NZ$" + selected.size;
+      checkoutMessage.textContent = "";
     }
+
+    checkout.addEventListener("click", async function () {
+      if (selected.size < 1) {
+        checkoutMessage.textContent = "Please select at least one square.";
+        return;
+      }
+
+      checkout.disabled = true;
+      checkoutMessage.textContent = "Preparing your checkout...";
+
+      try {
+        const response = await fetch(
+          WORKER_URL + "/create-checkout",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ squares: selected.size })
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.url) {
+          throw new Error(
+            result.error || "Checkout could not be created."
+          );
+        }
+
+        window.location.href = result.url;
+      } catch (error) {
+        checkoutMessage.textContent =
+          error.message || "Something went wrong. Please try again.";
+        checkout.disabled = false;
+      }
+    });
   </script>
 </body>
 </html>
