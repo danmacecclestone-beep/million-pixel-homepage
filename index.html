@@ -3,13 +3,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Million Pixel Project</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Million Pixel Homepage NZ</title>
 
-
-
-}
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -17,28 +18,20 @@ body {
   color: white;
   text-align: center;
 }
-header { padding: 35px 15px; }
-h1 { font-size: clamp(28px, 5vw, 48px); margin-bottom: 10px; }
-p { color: #ccc; }
-.wall {
-  display: grid;
-  grid-template-columns: repeat(100, 1fr);
-  gap: 2px;
-  max-width: 900px;
-  margin: 20px auto;
-  padding: 10px;
-  background: #333;
+
+header {
+  padding: 35px 15px;
 }
-.pixel 
-  aspect-ratio: 1;
-  background: #252525;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
 
+h1 {
+  font-size: clamp(28px, 5vw, 48px);
+  margin-bottom: 10px;
+}
 
+p {
+  color: #ccc;
+}
 
-footer { padding: 25px; color: #888; }
 button.action {
   background: #f5c542;
   color: #111;
@@ -47,91 +40,142 @@ button.action {
   padding: 12px 20px;
   font-weight: bold;
   cursor: pointer;
+  font-size: 16px;
+}
 
-}</style>
+.wall {
+  display: grid;
+  grid-template-columns: repeat(100, minmax(0, 1fr));
+  gap: 2px;
+  max-width: 900px;
+  margin: 20px auto;
+  padding: 10px;
+  background: #333;
+}
+
+.pixel {
+  aspect-ratio: 1;
+  min-width: 0;
+  background: #252525;
+  border: 0;
+  padding: 0;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.pixel:hover {
+  outline: 1px solid white;
+}
+
+.pixel.selected {
+  background: #f5c542;
+  outline: 1px solid white;
+}
+
+.info {
+  padding: 25px;
+}
+
+footer {
+  padding: 25px;
+  color: #888;
+}
+</style>
 </head>
+
 <body>
 <header>
-  <h1>The Million Pixel Project</h1>
-  <p>One million pixels. One dollar each. Your little piece of the internet.</p>
-  <button class="action" onclick="document.getElementById('wall').scrollIntoView({behavior:'smooth'})">Explore the wall</button>
+  <h1>Million Pixel Homepage NZ</h1>
+  <p>A little square of the internet for everyone.</p>
+  <button class="action" onclick="document.getElementById('wall').scrollIntoView({behavior:'smooth'})">
+    Explore the wall
+  </button>
 </header>
-<section class="info">
-  <h2>The Pixel Wall</h2>
-  <p>Choose a square to explore our advertising wall.</p>
-  <p id="status">Demonstration: 1,000,000 pixels planned</p>
-</section>
-<div id="wall" class="wall"></div>
+
+<main>
+  <div class="info">
+    <h2>Claim your place on the wall</h2>
+    <p>Select squares by clicking and dragging across the wall.</p>
+    <p id="status">No squares selected yet.</p>
+    <p id="price">Indicative price: NZ$1 per square.</p>
+  </div>
+
+  <div id="wall" class="wall"></div>
+
+  <div class="info">
+    <p>This website is a work in progress. Purchases are not available yet.</p>
+  </div>
+</main>
+
 <footer>
-  <p>Currently under construction. Purchases are not open.</p>
+  Million Pixel Homepage NZ
 </footer>
 
 <script>
-const wall = document.getElementById('wall');
-const status = document.getElementById('status');
+const wall = document.getElementById("wall");
+const status = document.getElementById("status");
+const price = document.getElementById("price");
 const columns = 100;
-const total = 10000;
-
+const totalPixels = 10000;
 let dragging = false;
 let startIndex = null;
 let selected = new Set();
 
-function updateSelection(endIndex) {
-  const startRow = Math.floor(startIndex / columns);
-  const startCol = startIndex % columns;
-  const endRow = Math.floor(endIndex / columns);
-  const endCol = endIndex % columns;
+for (let i = 0; i < totalPixels; i++) {
+  const pixel = document.createElement("button");
+  pixel.className = "pixel";
+  pixel.type = "button";
+  pixel.setAttribute("aria-label", "Pixel " + (i + 1));
+  pixel.title = "Pixel " + (i + 1);
+
+  pixel.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    dragging = true;
+    startIndex = i;
+    selectRectangle(i, i);
+  });
+
+  pixel.addEventListener("pointerenter", () => {
+    if (dragging && startIndex !== null) {
+      selectRectangle(startIndex, i);
+    }
+  });
+
+  wall.appendChild(pixel);
+}
+
+window.addEventListener("pointerup", () => {
+  dragging = false;
+});
+
+function selectRectangle(start, end) {
+  for (const index of selected) {
+    wall.children[index].classList.remove("selected");
+  }
+  selected.clear();
+
+  const startRow = Math.floor(start / columns);
+  const startCol = start % columns;
+  const endRow = Math.floor(end / columns);
+  const endCol = end % columns;
 
   const minRow = Math.min(startRow, endRow);
   const maxRow = Math.max(startRow, endRow);
   const minCol = Math.min(startCol, endCol);
   const maxCol = Math.max(startCol, endCol);
 
-  selected.clear();
-
-  wall.querySelectorAll('.pixel.selected')
-    .forEach(pixel => pixel.classList.remove('selected'));
-
   for (let row = minRow; row <= maxRow; row++) {
     for (let col = minCol; col <= maxCol; col++) {
       const index = row * columns + col;
       selected.add(index);
-      wall.children[index].classList.add('selected');
+      wall.children[index].classList.add("selected");
     }
   }
 
-  const count = selected.size;
-  status.textContent =
-    count + ' demo pixels selected — indicative price: NZ$' +
-    count.toLocaleString('en-NZ') +
-    '. Purchases are not open yet.';
+  status.textContent = selected.size + " square(s) selected.";
+  price.textContent = "Indicative price: NZ$" + selected.size + ".";
 }
-
-for (let i = 0; i < total; i++) {
-  const pixel = document.createElement('button');
-  pixel.className = 'pixel';
-  pixel.type = 'button';
-  pixel.setAttribute('aria-label', 'Demo pixel ' + (i + 1));
-  pixel.title = 'Drag to select an advertising block';
-
-  pixel.addEventListener('pointerdown', event => {
-    event.preventDefault();
-    dragging = true;
-    startIndex = i;
-    updateSelection(i);
-  });
-
-  pixel.addEventListener('pointerenter', () => {
-    if (dragging) updateSelection(i);
-  });
-
-  wall.appendChild(pixel);
-}
-
-window.addEventListener('pointerup', () => {
-  dragging = false;
-});
-
 </script>
 </body>
 </html>
