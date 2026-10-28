@@ -44,7 +44,7 @@
       margin: 0 auto;
     }
 
-    .info {
+    .info, .preview {
       margin: 20px auto;
       padding: 22px;
       background: var(--panel);
@@ -129,6 +129,15 @@
       overflow-wrap: anywhere;
     }
 
+    #image-preview {
+      display: block;
+      max-width: 100%;
+      max-height: 350px;
+      margin: 16px auto 0;
+      object-fit: contain;
+      border-radius: 6px;
+    }
+
     footer {
       padding: 25px 10px;
       color: #888;
@@ -174,6 +183,21 @@
     </section>
 
     <div id="wall" aria-label="Million Pixel advertising wall"></div>
+
+    <section class="preview">
+      <h2>Image Preview</h2>
+      <p class="muted">
+        Temporary test image. Customer uploads are not enabled yet.
+      </p>
+
+      <img
+        id="image-preview"
+        src="https://imgdb.io/i/ocOu76A.jpg"
+        alt="Million Pixel advertising image preview"
+      >
+
+      <p id="image-message" class="muted" aria-live="polite"></p>
+    </section>
   </main>
 
   <footer>Million Pixel — a wall of possibilities.</footer>
@@ -182,7 +206,6 @@
     const WORKER_URL =
       "https://million-pixel-checkout.danmacecclestone.workers.dev";
 
-    const columns = 100;
     const total = 10000;
 
     const wall = document.getElementById("wall");
@@ -191,6 +214,8 @@
     const checkout = document.getElementById("checkout");
     const refresh = document.getElementById("refresh");
     const message = document.getElementById("checkout-message");
+    const imagePreview = document.getElementById("image-preview");
+    const imageMessage = document.getElementById("image-message");
 
     const selected = new Set();
     const pixels = [];
@@ -199,6 +224,15 @@
     let dragMode = "select";
     let wallLoaded = false;
     let checkoutRunning = false;
+
+    imagePreview.addEventListener("load", function () {
+      imageMessage.textContent = "Test image loaded successfully.";
+    });
+
+    imagePreview.addEventListener("error", function () {
+      imageMessage.textContent =
+        "The image could not load. Check the JPG link.";
+    });
 
     function formatPrice(amount) {
       return new Intl.NumberFormat("en-NZ", {
@@ -235,15 +269,6 @@
       updateDisplay();
     }
 
-    function clearSelection() {
-      for (const id of selected) {
-        wall.children[id].classList.remove("selected");
-      }
-
-      selected.clear();
-      updateDisplay();
-    }
-
     function createWall() {
       for (let id = 0; id < total; id++) {
         const pixel = document.createElement("button");
@@ -271,7 +296,6 @@
 
         pixel.addEventListener("pointerenter", function () {
           if (!dragging || !wallLoaded || checkoutRunning) return;
-
           setPixel(id, dragMode === "select");
         });
 
@@ -321,7 +345,6 @@
           const pixel = wall.children[id];
           pixel.classList.remove("sold", "reserved", "selected");
           pixel.classList.add(pixels[id].status);
-
           pixel.disabled = pixels[id].status !== "available";
 
           pixel.title =
