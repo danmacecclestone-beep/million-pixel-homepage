@@ -44,7 +44,7 @@
       margin: 0 auto;
     }
 
-    .info, .preview {
+    .info, .panel {
       margin: 20px auto;
       padding: 22px;
       background: var(--panel);
@@ -62,11 +62,33 @@
       font-weight: bold;
       font-size: 1rem;
       cursor: pointer;
+      margin: 5px;
     }
 
     .action:disabled {
       cursor: wait;
       opacity: 0.6;
+    }
+
+    input[type="url"], input[type="text"] {
+      display: block;
+      width: 100%;
+      max-width: 600px;
+      margin: 8px auto 18px;
+      padding: 12px;
+      border: 1px solid #555;
+      border-radius: 6px;
+      background: #101010;
+      color: white;
+      font-size: 1rem;
+    }
+
+    label {
+      display: block;
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: left;
+      font-weight: bold;
     }
 
     .legend {
@@ -124,19 +146,12 @@
       font-weight: bold;
     }
 
-    #checkout-message {
+    .message {
       min-height: 1.5em;
       overflow-wrap: anywhere;
     }
 
-    #image-preview {
-      display: block;
-      max-width: 100%;
-      max-height: 350px;
-      margin: 16px auto 0;
-      object-fit: contain;
-      border-radius: 6px;
-    }
+    .hidden { display: none !important; }
 
     footer {
       padding: 25px 10px;
@@ -171,32 +186,59 @@
         Pay for advertising
       </button>
 
-      <p id="checkout-message" role="status" aria-live="polite"></p>
+      <p id="checkout-message" class="message" role="status"
+         aria-live="polite"></p>
 
       <button id="refresh" type="button" class="action">
         Refresh availability
       </button>
 
-      <p class="muted">
-        NZ$1 per square. Payments are in test mode.
-      </p>
+      <p class="muted">NZ$1 per square. Payments are currently in test mode.</p>
     </section>
 
     <div id="wall" aria-label="Million Pixel advertising wall"></div>
 
-    <section class="preview">
-      <h2>Image Preview</h2>
-      <p class="muted">
-        Temporary test image. Customer uploads are not enabled yet.
+    <section id="buyer-panel" class="panel hidden">
+      <h2>Submit thy advert</h2>
+      <p id="buyer-intro">
+        After a successful payment, thou mayest submit an image and destination link.
       </p>
 
-      <img
-        id="image-preview"
-        src="https://imgdb.io/i/ocOu76A.jpg"
-        alt="Million Pixel advertising image preview"
-      >
+      <p id="claim-message" class="message" role="status" aria-live="polite">
+        Checking thy payment...
+      </p>
 
-      <p id="image-message" class="muted" aria-live="polite"></p>
+      <form id="advert-form" class="hidden">
+        <label for="image-url">Direct image URL</label>
+        <input
+          id="image-url"
+          type="url"
+          placeholder="https://example.com/advert.jpg"
+          maxlength="2048"
+          required
+        >
+
+        <label for="destination-url">Website visitors should open</label>
+        <input
+          id="destination-url"
+          type="url"
+          placeholder="https://example.com"
+          maxlength="2048"
+          required
+        >
+
+        <p class="muted">
+          Use an image link that can be opened directly in a browser.
+          Your advert remains hidden until it is approved.
+        </p>
+
+        <button id="submit-ad" class="action" type="submit">
+          Submit advert for approval
+        </button>
+      </form>
+
+      <p id="advert-message" class="message" role="status"
+         aria-live="polite"></p>
     </section>
   </main>
 
@@ -214,8 +256,12 @@
     const checkout = document.getElementById("checkout");
     const refresh = document.getElementById("refresh");
     const message = document.getElementById("checkout-message");
-    const imagePreview = document.getElementById("image-preview");
-    const imageMessage = document.getElementById("image-message");
+
+    const buyerPanel = document.getElementById("buyer-panel");
+    const claimMessage = document.getElementById("claim-message");
+    const advertForm = document.getElementById("advert-form");
+    const submitAd = document.getElementById("submit-ad");
+    const advertMessage = document.getElementById("advert-message");
 
     const selected = new Set();
     const pixels = [];
@@ -224,15 +270,8 @@
     let dragMode = "select";
     let wallLoaded = false;
     let checkoutRunning = false;
-
-    imagePreview.addEventListener("load", function () {
-      imageMessage.textContent = "Test image loaded successfully.";
-    });
-
-    imagePreview.addEventListener("error", function () {
-      imageMessage.textContent =
-        "The image could not load. Check the JPG link.";
-    });
+    let claimToken = null;
+    let purchasedPixelIds = [];
 
     function formatPrice(amount) {
       return new Intl.NumberFormat("en-NZ", {
@@ -242,13 +281,13 @@
     }
 
     function updateDisplay() {
-      const count = selected.size;
-
       status.textContent =
-        count + (count === 1 ? " square selected." : " squares selected.");
+        selected.size +
+        (selected.size === 1 ? " square selected." : " squares selected.");
 
-      price.textContent = "Total: " + formatPrice(count);
-      checkout.disabled = !wallLoaded || checkoutRunning || count === 0;
+      price.textContent = "Total: " + formatPrice(selected.size);
+      checkout.disabled =
+        !wallLoaded || checkoutRunning || selected.size === 0;
     }
 
     function isAvailable(id) {
@@ -281,16 +320,12 @@
         pixel.addEventListener("pointerdown", function (event) {
           if (!wallLoaded || checkoutRunning) return;
 
-          if (event.button !== 0 && event.pointerType === "mouse") {
-            return;
-          }
-
+          if (event.button !== 0 && event.pointerType === "mouse") return;
           if (!isAvailable(id)) return;
 
           event.preventDefault();
           dragging = true;
           dragMode = selected.has(id) ? "deselect" : "select";
-
           setPixel(id, dragMode === "select");
         });
 
@@ -318,20 +353,19 @@
           throw new Error("The wall could not be loaded correctly.");
         }
 
+        const nextPixels = new Array(total);
+
         for (const item of result.pixels) {
           if (!Number.isInteger(item.pixel_id) ||
               item.pixel_id < 0 || item.pixel_id >= total ||
               !["available", "reserved", "sold"].includes(item.status)) {
             throw new Error("The server returned invalid pixel data.");
           }
-        }
 
-        const nextPixels = new Array(total);
-
-        for (const item of result.pixels) {
           if (nextPixels[item.pixel_id]) {
             throw new Error("Duplicate pixel data was received.");
           }
+
           nextPixels[item.pixel_id] = item;
         }
 
@@ -347,9 +381,7 @@
           pixel.classList.add(pixels[id].status);
           pixel.disabled = pixels[id].status !== "available";
 
-          pixel.title =
-            "Pixel " + (id + 1) + " — " + pixels[id].status;
-
+          pixel.title = "Pixel " + (id + 1) + " — " + pixels[id].status;
           pixel.setAttribute(
             "aria-label",
             "Pixel " + (id + 1) + " — " + pixels[id].status
@@ -378,6 +410,64 @@
       }
     }
 
+    async function recoverPurchase() {
+      const params = new URLSearchParams(window.location.search);
+      const paymentStatus = params.get("payment");
+      const sessionId = params.get("session_id");
+
+      if (paymentStatus === "cancelled") {
+        message.textContent =
+          "Checkout was cancelled. Refresh availability before trying again.";
+        return;
+      }
+
+      if (paymentStatus !== "success") return;
+
+      buyerPanel.classList.remove("hidden");
+
+      if (!sessionId) {
+        claimMessage.textContent =
+          "The checkout session is missing. Return through the Stripe success link to recover thy purchase.";
+        return;
+      }
+
+      claimMessage.textContent =
+        "Checking thy payment and retrieving thy purchase...";
+
+      try {
+        const response = await fetch(
+          WORKER_URL + "/claim?session_id=" + encodeURIComponent(sessionId)
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.claimToken ||
+            !Array.isArray(result.pixelIds)) {
+          throw new Error(
+            result.error || "Could not recover thy purchase."
+          );
+        }
+
+        claimToken = result.claimToken;
+        purchasedPixelIds = result.pixelIds;
+
+        claimMessage.textContent =
+          "Payment verified. Thou hast purchased " +
+          purchasedPixelIds.length +
+          (purchasedPixelIds.length === 1 ? " square." : " squares.") +
+          " Enter thy advert details below.";
+
+        advertForm.classList.remove("hidden");
+        message.textContent = "Payment confirmed. Thank thee for thy purchase.";
+
+        await loadPixels();
+      } catch (error) {
+        claimMessage.textContent =
+          (error.message || "Could not verify payment.") +
+          " If thou hast just paid, wait a moment and try reloading this page.";
+      }
+    }
+
     window.addEventListener("pointerup", function () {
       dragging = false;
     });
@@ -389,9 +479,7 @@
     refresh.addEventListener("click", loadPixels);
 
     checkout.addEventListener("click", async function () {
-      if (!wallLoaded || checkoutRunning || selected.size === 0) {
-        return;
-      }
+      if (!wallLoaded || checkoutRunning || selected.size === 0) return;
 
       const pixelIds = Array.from(selected);
 
@@ -401,24 +489,17 @@
       message.textContent = "Preparing secure checkout...";
 
       try {
-        const response = await fetch(
-          WORKER_URL + "/create-checkout",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pixelIds })
-          }
-        );
+        const response = await fetch(WORKER_URL + "/create-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pixelIds })
+        });
 
         const result = await response.json();
 
         if (!response.ok || !result.url) {
-          if (response.status === 409) {
-            await loadPixels();
-          }
-          throw new Error(
-            result.error || "Checkout could not be created."
-          );
+          if (response.status === 409) await loadPixels();
+          throw new Error(result.error || "Checkout could not be created.");
         }
 
         window.location.href = result.url;
@@ -426,26 +507,60 @@
         message.textContent =
           error.message || "Something went wrong. Please try again.";
         checkoutRunning = false;
-        checkout.disabled = false;
         refresh.disabled = false;
         updateDisplay();
       }
     });
 
+    advertForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      if (!claimToken || purchasedPixelIds.length === 0) {
+        advertMessage.textContent =
+          "A verified purchase is required before submitting an advert.";
+        return;
+      }
+
+      const imageUrl = document.getElementById("image-url").value.trim();
+      const destinationUrl =
+        document.getElementById("destination-url").value.trim();
+
+      submitAd.disabled = true;
+      advertMessage.textContent = "Submitting thy advert for review...";
+
+      try {
+        const response = await fetch(WORKER_URL + "/submit-ad", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            claimToken,
+            pixelIds: purchasedPixelIds,
+            imageUrl,
+            destinationUrl
+          })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Advert submission failed.");
+        }
+
+        advertMessage.textContent =
+          "Advert submitted successfully. It is pending approval and is not public yet.";
+
+        advertForm.classList.add("hidden");
+      } catch (error) {
+        advertMessage.textContent =
+          error.message || "Could not submit thy advert. Please try again.";
+      } finally {
+        submitAd.disabled = false;
+      }
+    });
+
     createWall();
     loadPixels();
-
-    const paymentStatus = new URLSearchParams(
-      window.location.search
-    ).get("payment");
-
-    if (paymentStatus === "success") {
-      message.textContent =
-        "Checkout returned successfully. The wall will update after Stripe confirms payment.";
-    } else if (paymentStatus === "cancelled") {
-      message.textContent =
-        "Checkout was cancelled. Refresh availability before trying again.";
-    }
+    recoverPurchase();
   </script>
 </body>
 </html>
